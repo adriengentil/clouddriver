@@ -151,15 +151,25 @@ public class AmazonCloudFormationCachingAgent
     ArrayList<CacheData> stackCacheData = new ArrayList<>();
 
     try {
-      List<Stack> stacks = cloudformation.describeStacks(describeStacksRequest).getStacks();
+      while (true) {
+        DescribeStacksResult describeStacksResult =
+            cloudformation.describeStacks(describeStacksRequest);
+        List<Stack> stacks = describeStacksResult.getStacks();
 
-      for (Stack stack : stacks) {
-        Map<String, Object> stackAttributes = getStackAttributes(stack, cloudformation);
-        String stackCacheKey =
-            Keys.getCloudFormationKey(stack.getStackId(), region, account.getName());
-        Map<String, Collection<String>> relationships = new HashMap<>();
-        relationships.put(STACKS.getNs(), Collections.singletonList(stackCacheKey));
-        stackCacheData.add(new DefaultCacheData(stackCacheKey, stackAttributes, relationships));
+        for (Stack stack : stacks) {
+          Map<String, Object> stackAttributes = getStackAttributes(stack, cloudformation);
+          String stackCacheKey =
+              Keys.getCloudFormationKey(stack.getStackId(), region, account.getName());
+          Map<String, Collection<String>> relationships = new HashMap<>();
+          relationships.put(STACKS.getNs(), Collections.singletonList(stackCacheKey));
+          stackCacheData.add(new DefaultCacheData(stackCacheKey, stackAttributes, relationships));
+        }
+
+        if (describeStacksResult.getNextToken() != null) {
+          describeStacksRequest.withNextToken(describeStacksResult.getNextToken());
+        } else {
+          break;
+        }
       }
     } catch (AmazonCloudFormationException e) {
       log.error("Error retrieving stacks", e);
